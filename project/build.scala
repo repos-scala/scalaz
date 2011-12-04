@@ -46,7 +46,7 @@ object build extends Build {
     id = "scalaz",
     base = file("."),
     settings = standardSettings ++ Unidoc.settings,
-    aggregate = Seq(core, concurrent, effect, iteratee, example, scalacheckBinding, tests)
+    aggregate = Seq(core, concurrent, effect, iteratee, example, scalacheckBinding, sql, tests)
   )
 
   lazy val core = Project(
@@ -106,10 +106,20 @@ object build extends Build {
     )
   )
 
+  lazy val sql = Project(
+    id = "sql",
+    base = file("sql"),
+    settings = standardSettings ++ Seq[Sett](
+      name := "scalaz-sql",
+      typeClasses := TypeClass.sql
+    ),
+    dependencies = Seq(core)
+  )
+
   lazy val tests = Project(
     id = "tests",
     base = file("tests"),
-    dependencies = Seq(core, iteratee, concurrent, effect, scalacheckBinding % "test"),
+    dependencies = Seq(core, iteratee, concurrent, effect, scalacheckBinding % "test", sql),
     settings = standardSettings ++Seq[Sett](
       name := "scalaz-tests",
       libraryDependencies ++= Seq(

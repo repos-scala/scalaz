@@ -102,6 +102,7 @@ object TypeClass {
   )
   lazy val concurrent = Seq(run)
   def effect = Seq(liftIO, monadIO, liftControlIO, monadControlIO, resource)
+  def sql: Seq[TypeClass] = Seq()
 }
 
 sealed abstract class Kind
