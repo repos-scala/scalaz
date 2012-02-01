@@ -1,40 +1,24 @@
 package scalaz
 
-import Isomorphism.<~>
-
-sealed trait WriterT[F[_], W, A] {
-  val runT: F[(W, A)]
+sealed trait WriterT[F[_], W, A] { self =>
+  val run: F[(W, A)]
 
   import WriterT._
 
-  def run(implicit i: F <~> Id): (W, A) =
-    i.to(runT)
-
   def mapValue[X, B](f: ((W, A)) => (X, B))(implicit F: Functor[F]): WriterT[F, X, B] =
-    writerT(F.map(runT)(f))
+    writerT(F.map(run)(f))
 
   def mapWritten[X](f: W => X)(implicit ftr: Functor[F]): WriterT[F, X, A] =
     mapValue(wa => (f(wa._1), wa._2))
 
-  def writtenT(implicit F: Functor[F]): F[W] =
-    F.map(runT)(_._1)
+  def written(implicit F: Functor[F]): F[W] =
+    F.map(run)(_._1)
 
-  def written(implicit i: F <~> Id): W =
-    run._1
+  def over(implicit F: Functor[F]): F[A] =
+    F.map(run)(_._2)
 
-  def overT(implicit F: Functor[F]): F[A] =
-    F.map(runT)(_._2)
-
-  def over(implicit i: F <~> Id): A =
-    run._2
-
-  def swapT(implicit F: Functor[F]): WriterT[F, A, W] =
+  def swap(implicit F: Functor[F]): WriterT[F, A, W] =
     mapValue(wa => (wa._2, wa._1))
-
-  def swap(implicit i: F <~> Id): Writer[A, W] = {
-    val (w, a) = run
-    writer((a, w))
-  }
 
   def :++>(w: => W)(implicit F: Functor[F], W: Semigroup[W]): WriterT[F, W, A] =
     mapWritten(W.append(_, w))
@@ -52,48 +36,49 @@ sealed trait WriterT[F[_], W, A] {
     mapWritten(_ => Z.zero)
 
   def map[B](f: A => B)(implicit F: Functor[F]): WriterT[F, W, B] =
-    writerT(F.map(runT)(wa => (wa._1, f(wa._2))))
+    writerT(F.map(run)(wa => (wa._1, f(wa._2))))
 
   def foreach[B](f: A => Unit)(implicit E: Each[F]): Unit =
-    E.each(runT)(wa => f(wa._2))
+    E.each(run)(wa => f(wa._2))
 
   def ap[B](f: => WriterT[F, W, (A) => B])(implicit F: Apply[F], W: Semigroup[W]): WriterT[F, W, B] = writerT {
-    F.map2(f.runT, runT) {
+    F.map2(f.run, run) {
       case ((w1, fab), (w2, a)) => (W.append(w1, w2), fab(a))
     }
   }
 
   def flatMap[B](f: A => WriterT[F, W, B])(implicit F: Monad[F], s: Semigroup[W]): WriterT[F, W, B] =
-    writerT(F.bind(runT){wa =>
-      val z = f(wa._2).runT
+    writerT(F.bind(run){wa =>
+      val z = f(wa._2).run
       F.map(z)(wb => (s.append(wa._1, wb._1), wb._2))
     })
 
   def traverse[G[_] , B](f: A => G[B])(implicit G: Applicative[G], F: Traverse[F]): G[WriterT[F, W, B]] = {
-    G.map(F.traverse(runT){
+    G.map(F.traverse(run){
       case (w, a) => G.map(f(a))(b => (w, b))
     })(WriterT(_))
   }
 
   def foldRight[B](z: => B)(f: (A, => B) => B)(implicit F: Foldable[F]) =
-    F.foldR(runT, z) { a => b =>
+    F.foldR(run, z) { a => b =>
       f(a._2, b)
     }
 
   def bimap[C, D](f: (W) => C, g: (A) => D)(implicit F: Functor[F]) =
-    writerT[F, C, D](F.map(runT)({
+    writerT[F, C, D](F.map(run)({
       case (a, b) => (f(a), g(b))
     }))
 
   def bitraverse[G[_], C, D](f: (W) => G[C], g: (A) => G[D])(implicit G: Applicative[G], F: Traverse[F]) =
-    G.map(F.traverse[G, (W, A), (C, D)](runT) {
+    G.map(F.traverse[G, (W, A), (C, D)](run) {
       case (a, b) => G.map2(f(a), g(b))((_, _))
     })(writerT(_))
 
-//  def rws[R, S](implicit ftr: Functor[F]): ReaderWriterStateT[A, W, S, F, A] =
-//    ReaderWriterStateT.readerWriterStateT(_ => s =>
-//      implicitly[Functor[F]].fmap((wa: (W, A)) => (wa._2, s, wa._1))(runT))
-
+  def rwst[R, S](implicit F: Functor[F]): ReaderWriterStateT[F, R, W, S, A] = ReaderWriterStateT(
+    (r, s) => F.map(self.run) {
+      case (w, a) => (w, a, s)
+    }
+  )
 }
 
 object WriterT extends WriterTFunctions with WriterTInstances {
@@ -102,7 +87,7 @@ object WriterT extends WriterTFunctions with WriterTInstances {
 }
 
 trait WriterTInstances4 {
-  implicit def writerTFunctor[F[_], W](F0: Functor[F]) = new WriterTFunctor[F, W] {
+  implicit def writerTFunctor[F[_], W](implicit F0: Functor[F]) = new WriterTFunctor[F, W] {
     implicit def F = F0
   }
 }
@@ -136,38 +121,52 @@ trait WriterTInstances0 extends WriterTInstances1 {
     implicit def F = F0
     implicit def W = W0
   }
+  implicit def writerTCoPointed[F[_], W](implicit F0: CoPointed[F]) = new WriterTCoPointed[F, W] {
+    implicit def F = F0
+  }
   implicit def writerTFoldable[F[_], W](implicit F0: Foldable[F]) = new WriterTFoldable[F, W] {
     implicit def F = F0
   }
+  implicit def writerTEqual[F[_], W, A](implicit E: Equal[F[(W, A)]]) = E.contramap((_: WriterT[F, W, A]).run)
 }
 
 trait WriterTInstances extends WriterTInstances0 {
   implicit def writerTBiTraverse[F[_]](implicit F0: Traverse[F]) = new WriterTBiTraverse[F] {
     implicit def F = F0
   }
+  implicit def writerCoMonad[W] = new WriterCoMonad[W] {
+    implicit def F = implicitly
+  }
   implicit def writerTTraverse[F[_], W](implicit F0: Traverse[F]) = new WriterTTraverse[F, W] {
     implicit def F = F0
   }
-  implicit def writerTIndex[F[_], W](implicit F0: Index[F], i: F <~> Id) = new WriterTIndex[F, W] {
-    implicit def iso = i
-    implicit def F = F0
+  implicit def writerTIndex[W] = new WriterTIndex[W] {
   }
   implicit def writerTEach[F[_], W](implicit F0: Each[F]) = new WriterTEach[F, W] {
     implicit def F = F0
   }
+  implicit def writerEqual[W, A](implicit W: Equal[W], A: Equal[A]) = {
+    import std.tuple._
+    Equal[(W, A)].contramap((_: Writer[W, A]).run)
+  }
 }
 
 trait WriterTFunctions {
-  def Writer[W, A](w: W, a: A): WriterT[Id, W, A] = WriterT[Id, W, A]((w, a))
-
   def writerT[F[_], W, A](v: F[(W, A)]): WriterT[F, W, A] = new WriterT[F, W, A] {
-    val runT = v
+    val run = v
   }
 
   def writer[W, A](v: (W, A)): Writer[W, A] =
     writerT[Id, W, A](v)
 
   def tell[W](w: W): Writer[W, Unit] = writer(w -> ())
+
+  def put[F[_], W, A](value: F[A])(w: W)(implicit F: Functor[F]): WriterT[F, W, A] =
+    WriterT(F.map(value)(a => (w, a)))
+
+  /** Puts the written value that is produced by applying the given function into a writer transformer and associates with `value` */
+  def putWith[F[_], W, A](value: F[A])(w: A => W)(implicit F: Functor[F]): WriterT[F, W, A] =
+    WriterT(F.map(value)(a => (w(a), a)))
 }
 
 //
@@ -207,9 +206,8 @@ trait WriterTEach[F[_], W] extends Each[({type λ[α]=WriterT[F, W, α]})#λ] {
 }
 
 // TODO does Index it make sense for F other than Id?
-trait WriterTIndex[F[_], W] extends Index[({type λ[α]=WriterT[F, W, α]})#λ] {
-  implicit def iso: F <~> Id
-  def index[A](fa: WriterT[F, W, A], i: Int) = if(i == 0) Some(fa.over) else None
+trait WriterTIndex[W] extends Index[({type λ[α]=WriterT[Id, W, α]})#λ] {
+  def index[A](fa: WriterT[Id, W, A], i: Int) = if(i == 0) Some(fa.over) else None
 }
 
 trait WriterTMonad[F[_], W] extends Monad[({type λ[α]=WriterT[F, W, α]})#λ] with WriterTApplicative[F, W] with WriterTPointed[F, W] {
@@ -242,4 +240,19 @@ trait WriterTBiTraverse[F[_]] extends BiTraverse[({type λ[α, β]=WriterT[F, α
 
   def bitraverse[G[_]: Applicative, A, B, C, D](fab: WriterT[F, A, B])(f: (A) => G[C], g: (B) => G[D]) =
     fab.bitraverse(f, g)
+}
+
+trait WriterTCoPointed[F[_], W] extends CoPointed[({type λ[α] = WriterT[F, W, α]})#λ] with WriterTFunctor[F, W] {
+  implicit def F: CoPointed[F]
+
+  def copoint[A](p: WriterT[F, W, A]): A = F.copoint(p.over)
+}
+
+trait WriterCoMonad[W] extends CoMonad[({type λ[α] = Writer[W, α]})#λ] with WriterTCoPointed[Id, W] {
+
+  override def cojoin[A](fa: Writer[W, A]): Writer[W, Writer[W, A]] =
+    Writer(fa.written, fa)
+
+  override def cobind[A, B](fa: Writer[W, A])(f: (Writer[W, A]) => B): Writer[W, B] =
+    Writer(fa.written, f(fa))
 }

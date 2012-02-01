@@ -7,7 +7,6 @@ trait TraverseV[F[_],A] extends SyntaxV[F[A]] {
   ////
 
   import Leibniz.===
-  import Id.{id}
   import State.state
 
   final def tmap[B](f: A => B) =
@@ -36,6 +35,13 @@ trait TraverseV[F[_],A] extends SyntaxV[F[A]] {
   final def traverseS[S, B](f: A => State[S, B]): State[S, F[B]] =
     F.traverseS[S, A, B](self)(f)
 
+  /**
+   * A version of `traverse` specialized for `State[S, G[B]]` that internally uses a `Trampoline`
+   * to avoid stack-overflow.
+   */
+  final def traverseSTrampoline[G[_]: Applicative, S, B](f: A => State[S, G[B]]): State[S, G[F[B]]] =
+    F.traverseSTrampoline[S, G, A, B](self)(f)
+
   final def runTraverseS[S, B](s: S)(f: A => State[S, B]): (F[B], S) =
     F.runTraverseS(self, s)(f)
 
@@ -50,9 +56,15 @@ trait TraverseV[F[_],A] extends SyntaxV[F[A]] {
   ////
 }
 
-trait ToTraverseV extends ToFunctorV with ToFoldableV {
-  implicit def ToTraverseV[FA](v: FA)(implicit F0: Unapply[Traverse, FA]) =
+trait ToTraverseV0 {
+  implicit def ToTraverseVUnapply[FA](v: FA)(implicit F0: Unapply[Traverse, FA]) =
     new TraverseV[F0.M,F0.A] { def self = F0(v); implicit def F: Traverse[F0.M] = F0.TC }
+
+}
+
+trait ToTraverseV extends ToTraverseV0 with ToFunctorV with ToFoldableV {
+  implicit def ToTraverseV[F[_],A](v: F[A])(implicit F0: Traverse[F]) =
+    new TraverseV[F,A] { def self = v; implicit def F: Traverse[F] = F0 }
 
   ////
 

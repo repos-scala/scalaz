@@ -111,7 +111,7 @@ object Tree extends TreeFunctions with TreeInstances {
 }
 
 trait TreeInstances {
-  implicit object treeInstance extends Traverse[Tree] with Monad[Tree] with CoMonad[Tree] with CoBind.FromCoJoin[Tree] {
+  implicit val treeInstance: Traverse[Tree] with Monad[Tree] with CoMonad[Tree] = new Traverse[Tree] with Monad[Tree] with CoMonad[Tree] with CoBind.FromCoJoin[Tree] {
     def point[A](a: => A): Tree[A] = Tree.leaf(a)
     def cojoin[A](a: Tree[A]): Tree[Tree[A]] = a.cobind(identity(_))
     def copoint[A](p: Tree[A]): A = p.rootLabel
@@ -120,6 +120,12 @@ trait TreeInstances {
     def traverseImpl[G[_]: Applicative, A, B](fa: Tree[A])(f: (A) => G[B]): G[Tree[B]] = fa traverse f
     def foldRight[A, B](fa: Tree[A], z: => B)(f: (A, => B) => B): B = fa.foldRight(z)(f)
     override def foldMap[A, B](fa: Tree[A])(f: (A) => B)(implicit F: Monoid[B]): B = fa foldMap f
+  }
+
+  implicit def treeEqual[A](implicit A: Equal[A]): Equal[Tree[A]] = new Equal[Tree[A]] {
+    def equal(a1: Tree[A], a2: Tree[A]): Boolean = {
+      A.equal(a1.rootLabel, a2.rootLabel) && a1.subForest.corresponds(a2.subForest)(equal _)
+    }
   }
 
   /* TODO

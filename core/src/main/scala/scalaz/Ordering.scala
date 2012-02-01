@@ -12,7 +12,7 @@ trait OrderingInstances {
 
   import Ordering._
 
-  implicit object orderingInstance extends Order[Ordering] with Show[Ordering] with Monoid[Ordering] {
+  implicit val orderingInstance: Order[Ordering] with Show[Ordering] with Monoid[Ordering] = new Order[Ordering] with Show[Ordering] with Monoid[Ordering] {
     def order(a1: Ordering, a2: Ordering): Ordering = (a1, a2) match {
       case (LT, LT)      => EQ
       case (LT, EQ | GT) => LT
@@ -42,5 +42,5 @@ trait OrderingFunctions {
     else if (f(a2, a1)) GT
     else EQ
 
-  def fromInt(intOrdering: Int) = if (intOrdering < 0) LT else if (intOrdering > 0) GT else EQ
+  def fromInt(intOrdering: Int): Ordering = if (intOrdering < 0) LT else if (intOrdering > 0) GT else EQ
 }

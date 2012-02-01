@@ -5,13 +5,21 @@ package syntax
 trait MonadV[F[_],A] extends SyntaxV[F[A]] {
   implicit def F: Monad[F]
   ////
+  
+  def liftM[G[_[_], _]](implicit G: MonadTrans[G]): G[F, A] = G.liftM(self)
 
   ////
 }
 
-trait ToMonadV extends ToApplicativeV with ToBindV {
-  implicit def ToMonadV[FA](v: FA)(implicit F0: Unapply[Monad, FA]) =
+trait ToMonadV0 {
+  implicit def ToMonadVUnapply[FA](v: FA)(implicit F0: Unapply[Monad, FA]) =
     new MonadV[F0.M,F0.A] { def self = F0(v); implicit def F: Monad[F0.M] = F0.TC }
+
+}
+
+trait ToMonadV extends ToMonadV0 with ToApplicativeV with ToBindV {
+  implicit def ToMonadV[F[_],A](v: F[A])(implicit F0: Monad[F]) =
+    new MonadV[F,A] { def self = v; implicit def F: Monad[F] = F0 }
 
   ////
 
