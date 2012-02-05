@@ -11,6 +11,11 @@ sealed trait SqlExceptionContext {
   def exception: SqlException = this match {
     case SqlExceptionContextImpl(e, _) => e
   }
+
+  // Note: O(n)
+  def traceList: List[TraceOp] =
+    trace.list
+
 }
 private case class SqlExceptionContextImpl(e: SqlException, t: Trace) extends SqlExceptionContext
 

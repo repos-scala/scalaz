@@ -106,3 +106,16 @@ trait SqlTFunctions {
     }), F.map(s.value) { case (_, _, c) => c })))
 
 }
+
+private[sql] trait SqlTFunctor[F[_]] extends Functor[({type f[a] = SqlT[F, a]})#f] {
+  implicit def F: Functor[F]
+
+  override def map[A, B](fa: SqlT[F, A])(f: A => B): SqlT[F, B] = fa.map(f)
+}
+
+private[sql] trait SqlTBind[F[_]] extends Bind[({type f[a] = SqlT[F, a]})#f] {
+  implicit def F: Monad[F]
+
+  override def bind[A, B](fa: SqlT[F, A])(f: A => SqlT[F, B]): SqlT[F, B] =
+    fa.flatMap(f)
+}
