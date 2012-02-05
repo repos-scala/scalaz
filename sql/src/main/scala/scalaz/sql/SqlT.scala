@@ -12,6 +12,9 @@ sealed trait SqlT[F[_], A] {
   def map[B](f: A => B)(implicit F: Functor[F]): SqlT[F, B] =
     SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.right map f) })
 
+  def foreach(f: A => Unit)(implicit F: Each[F]): Unit =
+    F.each(value) { case (_, _, y) => y.right foreach f }
+
   def flatMap[B](f: A => SqlT[F, B])(implicit F: Monad[F]): SqlT[F, B] =
     SqlTImpl(F.bind(value) {
       case (p, t, y) => y match {
@@ -75,6 +78,9 @@ sealed trait SqlT[F[_], A] {
   def traceList(implicit F: Functor[F]): F[List[TraceOp]] =
     F.map(trace)(_.list)
 
+  def eitherT(implicit F: Functor[F]): EitherT[({type λ[α]=WriterT[F, Trace, α]})#λ, SqlExceptionContext, A] =
+    EitherT[({type λ[α]=WriterT[F, Trace, α]})#λ, SqlExceptionContext, A](
+      WriterT(F.map(value) { case (_, t, y) => (t, y) }))
 }
 private case class SqlTImpl[F[_], A](x: F[(Boolean, Trace, Either[SqlExceptionContext, A])]) extends SqlT[F, A]
 
@@ -111,6 +117,12 @@ private[sql] trait SqlTFunctor[F[_]] extends Functor[({type f[a] = SqlT[F, a]})#
   implicit def F: Functor[F]
 
   override def map[A, B](fa: SqlT[F, A])(f: A => B): SqlT[F, B] = fa.map(f)
+}
+
+trait SqlTEach[F[_]] extends Each[({type λ[α]=SqlT[F, α]})#λ] {
+  implicit def F: Each[F]
+
+  def each[A](fa: SqlT[F, A])(f: A => Unit) = fa foreach f
 }
 
 private[sql] trait SqlTBind[F[_]] extends Bind[({type f[a] = SqlT[F, a]})#f] {
