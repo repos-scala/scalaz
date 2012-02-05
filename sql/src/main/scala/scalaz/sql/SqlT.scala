@@ -90,12 +90,12 @@ trait SqlTFunctions {
   import Lens._
   import CoStateT._
 
-  def traceSwitchL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[Boolean] =
+  def sqlTraceSwitchL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[Boolean] =
     lens(s => coState((k => SqlTImpl(F.map2(s.value, k){
       case ((_, b, c), x) => (x, b, c)
     }), F.map(s.value) { case (a, _, _) => a })))
 
-  def traceL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[Trace] =
+  def sqlTraceL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[Trace] =
     lens(s => coState((k => SqlTImpl(F.map2(s.value, k){
       case ((a, _, c), x) => (a, x, c)
     }), F.map(s.value) { case (_, b, _) => b })))
