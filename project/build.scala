@@ -128,7 +128,7 @@ object build extends Build {
       name := "scalaz-sql",
       typeClasses := TypeClass.sql
     ),
-    dependencies = Seq(core)
+    dependencies = Seq(core, effect)
   )
 
   lazy val tests = Project(

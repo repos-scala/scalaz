@@ -84,6 +84,15 @@ sealed trait SqlT[F[_], A] {
   def traceList(implicit F: Functor[F]): F[List[TraceOp]] =
     F.map(trace)(_.list)
 
+  def +:(a: TraceOp)(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (p, t, y) => (p, a +: t, y) })
+
+  def :+(a: TraceOp)(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (p, t, y) => (p, t :+ a, y) })
+
+  def ++(a: Trace)(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (p, t, y) => (p, t ++ a, y) })
+
   def eitherT(implicit F: Functor[F]): EitherT[({type λ[α]=WriterT[F, Trace, α]})#λ, SqlExceptionContext, A] =
     EitherT[({type λ[α]=WriterT[F, Trace, α]})#λ, SqlExceptionContext, A](
       WriterT(F.map(value) { case (_, t, y) => (t, y) }))
@@ -96,8 +105,20 @@ trait SqlTFunctions {
   type Sql[A] =
   SqlT[Id, A]
 
+  type SqlIO[A] =
+  SqlT[effect.IO, A]
+
   type SqlExceptionContextOr[A] =
   Either[SqlExceptionContext, A]
+
+  def apply[F[_], A](v: F[(Boolean, Trace, SqlExceptionContextOr[A])]): SqlT[F, A] =
+    SqlTImpl(v)
+
+  def sqlT[F[_], A](a: A)(implicit P: Pointed[F]): SqlT[F, A] =
+    SqlTImpl(P.point(true, Trace.empty, Right(a)))
+
+  def sqlTException[F[_], A](x: SqlExceptionContext)(implicit P: Pointed[F]): SqlT[F, A] =
+    SqlTImpl(P.point(true, Trace.empty, Left(x)))
 
   import Lens._
   import CoStateT._

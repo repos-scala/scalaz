@@ -15,6 +15,12 @@ trait Trace {
   def isEmpty: Boolean =
     list.isEmpty
 
+  def +:(a: TraceOp): Trace =
+    TraceImpl(a +: value)
+
+  def :+(a: TraceOp): Trace =
+    TraceImpl(value :+ a)
+
   def ++(t: Trace): Trace =
     TraceImpl(value ++ t.value)
 }
@@ -29,8 +35,11 @@ trait TraceFunctions {
   type TrO =
     Tr[TraceOp]
 
+  def empty: Trace =
+    TraceImpl(DList[TraceOp]())
+
   implicit val TraceMonoid: Monoid[Trace] = new Monoid[Trace] {
-    val zero = TraceImpl(DList[TraceOp]())
+    val zero = empty
     def append(a: Trace, b: => Trace) = a ++ b
  }
 
