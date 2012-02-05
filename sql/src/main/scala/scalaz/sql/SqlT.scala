@@ -47,6 +47,9 @@ sealed trait SqlT[F[_], A] {
   def isValid(implicit F: Functor[F]): F[Boolean] =
     F.map(value) { case (_, _, y) => y.isRight }
 
+  def withValue(k: A => A)(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.right map k) })
+
   def withValue(k: A => \/[A])(implicit F: Functor[F]): SqlT[F, A] =
     SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.right flatMap k) })
 
@@ -58,6 +61,9 @@ sealed trait SqlT[F[_], A] {
 
   def isException(implicit F: Functor[F]): F[Boolean] =
     F.map(value) { case (_, _, y) => y.isLeft }
+
+  def mapException(k: SqlExceptionContext => SqlExceptionContext)(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.left map k) })
 
   def withException(k: SqlExceptionContext => \/[A])(implicit F: Functor[F]): SqlT[F, A] =
     SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.left flatMap k) })
