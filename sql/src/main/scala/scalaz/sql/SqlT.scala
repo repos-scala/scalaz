@@ -90,4 +90,9 @@ trait SqlTFunctions {
       case ((a, _, c), x) => (a, x, c)
     }), F.map(s.value) { case (_, b, _) => b })))
 
+  def sqlValueL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[\/[A]] =
+    lens(s => coState((k => SqlTImpl(F.map2(s.value, k){
+      case ((a, b, _), x) => (a, b, x)
+    }), F.map(s.value) { case (_, _, c) => c })))
+
 }
