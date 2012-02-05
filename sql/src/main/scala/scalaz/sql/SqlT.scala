@@ -5,7 +5,7 @@ import SqlT._
 
 // Note this is not a monad but does have flatMap
 sealed trait SqlT[F[_], A] {
-  private[sql] val value: F[(Boolean, Trace, \/[A])] = this match {
+  private[sql] val value: F[(Boolean, Trace, SqlExceptionContextOr[A])] = this match {
     case SqlTImpl(x) => x
   }
 
@@ -47,10 +47,10 @@ sealed trait SqlT[F[_], A] {
   def isValid(implicit F: Functor[F]): F[Boolean] =
     F.map(value) { case (_, _, y) => y.isRight }
 
-  def withValue(k: A => A)(implicit F: Functor[F]): SqlT[F, A] =
+  def mapValue(k: A => A)(implicit F: Functor[F]): SqlT[F, A] =
     SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.right map k) })
 
-  def withValue(k: A => \/[A])(implicit F: Functor[F]): SqlT[F, A] =
+  def withValue(k: A => SqlExceptionContextOr[A])(implicit F: Functor[F]): SqlT[F, A] =
     SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.right flatMap k) })
 
   def exception(implicit F: Functor[F]): OptionT[F, SqlExceptionContext] =
@@ -65,7 +65,7 @@ sealed trait SqlT[F[_], A] {
   def mapException(k: SqlExceptionContext => SqlExceptionContext)(implicit F: Functor[F]): SqlT[F, A] =
     SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.left map k) })
 
-  def withException(k: SqlExceptionContext => \/[A])(implicit F: Functor[F]): SqlT[F, A] =
+  def withException(k: SqlExceptionContext => SqlExceptionContextOr[A])(implicit F: Functor[F]): SqlT[F, A] =
     SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.left flatMap k) })
 
   def trace(implicit F: Functor[F]): F[Trace] =
@@ -84,7 +84,7 @@ trait SqlTFunctions {
   type Sql[A] =
   SqlT[Id, A]
 
-  type \/[A] =
+  type SqlExceptionContextOr[A] =
   Either[SqlExceptionContext, A]
 
   import Lens._
@@ -100,7 +100,7 @@ trait SqlTFunctions {
       case ((a, _, c), x) => (a, x, c)
     }), F.map(s.value) { case (_, b, _) => b })))
 
-  def sqlValueL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[\/[A]] =
+  def sqlValueL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[SqlExceptionContextOr[A]] =
     lens(s => coState((k => SqlTImpl(F.map2(s.value, k){
       case ((a, b, _), x) => (a, b, x)
     }), F.map(s.value) { case (_, _, c) => c })))
