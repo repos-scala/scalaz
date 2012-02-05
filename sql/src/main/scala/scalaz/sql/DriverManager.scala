@@ -12,7 +12,7 @@ trait DriverManagerFunctions {
 
   import SqlT._
 
-  def connection(url: String, userpass: Option[(Username, Password)]): SqlIO[Connection] =
+  private[sql] def connection(url: String, userpass: Option[(Username, Password)]): Sql[Connection] =
     userpass match {
       case Some((u, p)) =>
         trySqlT(ConnectUserPass(url, u, p), Connection(java.sql.DriverManager.getConnection(url, u, p)))
@@ -20,9 +20,10 @@ trait DriverManagerFunctions {
         trySqlT(Connect(url), Connection(java.sql.DriverManager.getConnection(url)))
     }
 
-  def connect(url: String): SqlIO[Connection] =
+  def connect(url: String): Sql[Connection] =
     connection(url, None)
 
-  def connectUserPass(url: String, user: Username, pass: Password): SqlIO[Connection] =
+  def connectUserPass(url: String, user: Username, pass: Password): Sql[Connection] =
     connection(url, Some((user, pass)))
+
 }
