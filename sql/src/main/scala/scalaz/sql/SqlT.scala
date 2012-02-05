@@ -1,9 +1,11 @@
 package scalaz
 package sql
 
+import SqlT._
+
 // Note this is not a monad but does have flatMap
 sealed trait SqlT[F[_], A] {
-  private[sql] val value: F[(Boolean, Trace, Either[SqlExceptionContext, A])] = this match {
+  private[sql] val value: F[(Boolean, Trace, \/[A])] = this match {
     case SqlTImpl(x) => x
   }
 
@@ -23,6 +25,46 @@ sealed trait SqlT[F[_], A] {
           }
       }
     })
+
+  def toggleTrace(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (p, t, z) => (!p, t, z) })
+
+  def traceOn(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (_, t, z) => (true, t, z) })
+
+  def traceOff(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (_, t, z) => (false, t, z) })
+
+  def isTrace(implicit F: Functor[F]): F[Boolean] =
+    F.map(value) { case (p, _, _) => p }
+
+  def get(implicit F: Functor[F]): OptionT[F, A] =
+    OptionT(F.map(value) { case (_, _, y) => y.right.toOption })
+
+  def |(a: => A)(implicit F: Functor[F]): F[A] =
+    F.map(value) { case (_, _, y) => y.right getOrElse a }
+
+  def isValid(implicit F: Functor[F]): F[Boolean] =
+    F.map(value) { case (_, _, y) => y.isRight }
+
+  def withValue(k: A => \/[A])(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.right flatMap k) })
+
+  def exception(implicit F: Functor[F]): OptionT[F, SqlExceptionContext] =
+    OptionT(F.map(value) { case (_, _, y) => y.left.toOption })
+
+  def exceptionOr(x: => SqlExceptionContext)(implicit F: Functor[F]): F[SqlExceptionContext] =
+    F.map(value) { case (_, _, y) => y.left getOrElse x }
+
+  def isException(implicit F: Functor[F]): F[Boolean] =
+    F.map(value) { case (_, _, y) => y.isLeft }
+
+  def withException(k: SqlExceptionContext => \/[A])(implicit F: Functor[F]): SqlT[F, A] =
+    SqlTImpl(F.map(value) { case (p, t, z) => (p, t, z.left flatMap k) })
+
+  def trace(implicit F: Functor[F]): F[Trace] =
+    F.map(value) { case (_, t, _) => t }
+
 }
 private case class SqlTImpl[F[_], A](x: F[(Boolean, Trace, Either[SqlExceptionContext, A])]) extends SqlT[F, A]
 
@@ -32,15 +74,18 @@ trait SqlTFunctions {
   type Sql[A] =
   SqlT[Id, A]
 
+  type \/[A] =
+  Either[SqlExceptionContext, A]
+
   import Lens._
   import CoStateT._
 
-  def traceSwitchTL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[Boolean] =
+  def traceSwitchL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[Boolean] =
     lens(s => coState((k => SqlTImpl(F.map2(s.value, k){
       case ((_, b, c), x) => (x, b, c)
     }), F.map(s.value) { case (a, _, _) => a })))
 
-  def traceTL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[Trace] =
+  def traceL[F[_], A](implicit F: Monad[F]): SqlT[F, A] @-@ F[Trace] =
     lens(s => coState((k => SqlTImpl(F.map2(s.value, k){
       case ((a, _, c), x) => (a, x, c)
     }), F.map(s.value) { case (_, b, _) => b })))
