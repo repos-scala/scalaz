@@ -15,6 +15,12 @@ sealed trait SqlT[F[_], A] {
   def foreach(f: A => Unit)(implicit F: Each[F]): Unit =
     F.each(value) { case (_, _, y) => y.right foreach f }
 
+  def foldRight[B](z: => B)(f: (A, => B) => B)(implicit F: Foldable[F]) =
+    F.foldR(value, z)(a => b => a._3 match {
+      case Left(_) => b
+      case Right(w) => f(w, b)
+    })
+
   def flatMap[B](f: A => SqlT[F, B])(implicit F: Monad[F]): SqlT[F, B] =
     SqlTImpl(F.bind(value) {
       case (p, t, y) => y match {
@@ -123,6 +129,12 @@ trait SqlTEach[F[_]] extends Each[({type λ[α]=SqlT[F, α]})#λ] {
   implicit def F: Each[F]
 
   def each[A](fa: SqlT[F, A])(f: A => Unit) = fa foreach f
+}
+
+trait SqlTFoldable[F[_]] extends Foldable.FromFoldr[({type λ[α]=SqlT[F, α]})#λ] {
+  implicit def F: Foldable[F]
+
+  override def foldRight[A, B](fa: SqlT[F, A], z: => B)(f: (A, => B) => B) = fa.foldRight(z)(f)
 }
 
 private[sql] trait SqlTBind[F[_]] extends Bind[({type f[a] = SqlT[F, a]})#f] {
