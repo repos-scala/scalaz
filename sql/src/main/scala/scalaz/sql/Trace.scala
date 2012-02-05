@@ -8,6 +8,13 @@ trait Trace {
     case TraceImpl(x) => x
   }
 
+  // O(n)
+  lazy val list: List[TraceOp] =
+    value.toList
+
+  def isEmpty: Boolean =
+    list.isEmpty
+
   def ++(t: Trace): Trace =
     TraceImpl(value ++ t.value)
 }

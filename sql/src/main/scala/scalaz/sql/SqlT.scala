@@ -65,6 +65,10 @@ sealed trait SqlT[F[_], A] {
   def trace(implicit F: Functor[F]): F[Trace] =
     F.map(value) { case (_, t, _) => t }
 
+  // Note: O(n)
+  def traceList(implicit F: Functor[F]): F[List[TraceOp]] =
+    F.map(trace)(_.list)
+
 }
 private case class SqlTImpl[F[_], A](x: F[(Boolean, Trace, Either[SqlExceptionContext, A])]) extends SqlT[F, A]
 
