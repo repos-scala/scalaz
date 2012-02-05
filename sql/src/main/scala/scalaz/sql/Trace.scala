@@ -23,6 +23,7 @@ trait Trace {
 
   def ++(t: Trace): Trace =
     TraceImpl(value ++ t.value)
+
 }
 private case class TraceImpl(x: TrO) extends Trace
 
@@ -37,6 +38,9 @@ trait TraceFunctions {
 
   def empty: Trace =
     TraceImpl(DList[TraceOp]())
+
+  def single(o: TraceOp): Trace =
+    empty :+ o
 
   implicit val TraceMonoid: Monoid[Trace] = new Monoid[Trace] {
     val zero = empty

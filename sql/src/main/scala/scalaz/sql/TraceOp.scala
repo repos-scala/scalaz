@@ -4,11 +4,10 @@ package sql
 sealed trait TraceOp {
 
 }
-private case class StatementExecuteQuery(sql: String) extends TraceOp
+case class Connect(url: String) extends TraceOp
+case class ConnectUserPass(url: String, user: String, pass: String) extends TraceOp
+case class StatementExecuteQuery(sql: String) extends TraceOp
 
 object TraceOp extends TraceOpFunctions
 
-trait TraceOpFunctions {
-  def statementExecuteQuery(sql: String): TraceOp =
-    StatementExecuteQuery(sql)
-}
+trait TraceOpFunctions

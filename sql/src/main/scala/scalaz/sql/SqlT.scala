@@ -96,6 +96,7 @@ sealed trait SqlT[F[_], A] {
   def eitherT(implicit F: Functor[F]): EitherT[({type λ[α]=WriterT[F, Trace, α]})#λ, SqlExceptionContext, A] =
     EitherT[({type λ[α]=WriterT[F, Trace, α]})#λ, SqlExceptionContext, A](
       WriterT(F.map(value) { case (_, t, y) => (t, y) }))
+
 }
 private case class SqlTImpl[F[_], A](x: F[(Boolean, Trace, Either[SqlExceptionContext, A])]) extends SqlT[F, A]
 
@@ -111,6 +112,8 @@ trait SqlTFunctions {
   type SqlExceptionContextOr[A] =
   Either[SqlExceptionContext, A]
 
+  import SqlExceptionContext._
+
   def apply[F[_], A](v: F[(Boolean, Trace, SqlExceptionContextOr[A])]): SqlT[F, A] =
     SqlTImpl(v)
 
@@ -119,6 +122,15 @@ trait SqlTFunctions {
 
   def sqlTException[F[_], A](x: SqlExceptionContext)(implicit P: Pointed[F]): SqlT[F, A] =
     SqlTImpl(P.point(true, Trace.empty, Left(x)))
+
+  def trySqlT[F[_], A](t: TraceOp, a: => A)(implicit P: Pointed[F]): SqlT[F, A] =
+    SqlTImpl(P.point(try {
+      val b = a
+      (true, Trace.single(t), Right(b))
+    } catch {
+      case e: SqlException =>
+        (true, Trace.empty, Left(SqlExceptionContext(e, Trace.single(t))))
+    }))
 
   import Lens._
   import CoStateT._

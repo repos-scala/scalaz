@@ -25,6 +25,9 @@ trait SqlExceptionContextFunctions {
   type SqlException =
     java.sql.SQLException
 
+  def apply(e: SqlException, t: Trace): SqlExceptionContext =
+    SqlExceptionContextImpl(e, t)
+
   import Lens._
   import CoStateT._
 
