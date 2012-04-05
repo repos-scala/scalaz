@@ -199,6 +199,9 @@ sealed trait StrZipper {
 
   def apply(c: Char): StrZipper =
     StrZipper(lefts, c, rights)
+
+  def toStr: Str =
+    lefts.reverse ::: focus :: rights
 }
 
 object StrZipper extends StrZipperFunctions {
