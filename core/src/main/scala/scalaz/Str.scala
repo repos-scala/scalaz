@@ -66,6 +66,12 @@ sealed trait Str {
       })
     }
 
+  def each(f: Char => Char): Str =
+    v match {
+      case Left(x)  => x map f
+      case Right(y) => y map f
+    }
+
   def head: Option[Costate[Char, Str]] =
     strHeadL run this
 
