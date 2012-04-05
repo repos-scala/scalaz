@@ -1,5 +1,7 @@
 package scalaz
 
+import Lens._
+import PLens._
 import DList._
 import std.AllInstances._
 import collection.immutable.StringOps
@@ -99,6 +101,18 @@ sealed trait Str {
             DL[Char](_ => (y: StringOps)(0) :: c)
           , y substring 1 toList))
     }
+
+  def zipper: Option[StrZipper] =
+    (v match {
+      case Left(x)  =>
+        x.toList
+      case Right(y) =>
+        y.toList
+    }) match {
+      case Nil => None
+      case h::t => Some(StrZipper(Nil, h, t))
+    }
+
 }
 
 object Str extends StrFunctions with StrInstances
@@ -167,4 +181,54 @@ trait StrFunctions {
     new Str {
       val v = Left(DL[Char](_ => s))
     }
+}
+
+sealed trait StrZipper {
+  val lefts: List[Char]
+  val focus: Char
+  val rights: List[Char]
+
+  import CostateT._
+  import StrZipper._
+
+  def left: Option[Costate[Char, StrZipper]] =
+    strZipperLeftL run this
+
+  def right: Option[Costate[Char, StrZipper]] =
+    strZipperRightL run this
+
+  def apply(c: Char): StrZipper =
+    StrZipper(lefts, c, rights)
+}
+
+object StrZipper extends StrZipperFunctions {
+  def apply(l: List[Char], f: Char, r: List[Char]): StrZipper =
+    strZipper(l, f, r)
+}
+
+trait StrZipperFunctions {
+  def strZipper(l: List[Char], f: Char, r: List[Char]): StrZipper =
+    new StrZipper {
+      val lefts = l
+      val focus = f
+      val rights = r
+    }
+
+  import CostateT._
+
+  def strZipperLeftsL: StrZipper @-@ List[Char] =
+    Lens(w => costate(x => StrZipper(x, w.focus, w.rights), w.lefts))
+
+  def strZipperFocusL: StrZipper @-@ Char =
+    Lens(w => costate(x => StrZipper(w.lefts, x, w.rights), w.focus))
+
+  def strZipperRightsL: StrZipper @-@ List[Char] =
+    Lens(w => costate(x => StrZipper(w.lefts, w.focus, x), w.rights))
+
+  def strZipperLeftL: StrZipper @-? Char =
+    PLens.listHeadPLens >=> ~strZipperLeftsL
+
+  def strZipperRightL: StrZipper @-? Char =
+    PLens.listHeadPLens >=> ~strZipperRightsL
+
 }
