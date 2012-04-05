@@ -67,40 +67,10 @@ sealed trait Str {
     }
 
   def head: Option[Costate[Char, Str]] =
-    v match {
-      case Left(x)  =>
-        x.toList match {
-          case Nil => None
-          case h::t => Some(costate(x => DL[Char](_ => x::t), h))
-        }
-      case Right(y) =>
-        if(y.isEmpty)
-          None
-        else
-          Some(costate(c => {
-            val a = y.toCharArray
-            a(0) = c
-            new String(a)
-          }, (y: StringOps)(0)))
-    }
+    strHeadL run this
 
   def tail: Option[Costate[List[Char], Str]] =
-    v match {
-      case Left(x)  =>
-        x.toList match {
-          case Nil => None
-          case h::t => Some(costate(x =>
-            DL[Char](_ => h::x)
-          , t))
-        }
-      case Right(y) =>
-        if(y.isEmpty)
-          None
-        else
-          Some(costate(c =>
-            DL[Char](_ => (y: StringOps)(0) :: c)
-          , y substring 1 toList))
-    }
+    strTailL run this
 
   def zipper: Option[StrZipper] =
     (v match {
@@ -181,6 +151,45 @@ trait StrFunctions {
     new Str {
       val v = Left(DL[Char](_ => s))
     }
+
+  import CostateT._
+
+  def strHeadL: Str @-? Char =
+    PLens(_.v match {
+      case Left(x)  =>
+        x.toList match {
+          case Nil => None
+          case h::t => Some(costate(x => DL[Char](_ => x::t), h))
+        }
+      case Right(y) =>
+        if(y.isEmpty)
+          None
+        else
+          Some(costate(c => {
+            val a = y.toCharArray
+            a(0) = c
+            new String(a)
+          }, (y: StringOps)(0)))
+    })
+
+  def strTailL: Str @-? List[Char] =
+    PLens(_.v match {
+      case Left(x)  =>
+        x.toList match {
+          case Nil => None
+          case h::t => Some(costate(x =>
+            DL[Char](_ => h::x)
+          , t))
+        }
+      case Right(y) =>
+        if(y.isEmpty)
+          None
+        else
+          Some(costate(c =>
+            DL[Char](_ => (y: StringOps)(0) :: c)
+          , y substring 1 toList))
+    })
+
 }
 
 sealed trait StrZipper {
@@ -202,6 +211,12 @@ sealed trait StrZipper {
 
   def toStr: Str =
     lefts.reverse ::: focus :: rights
+
+  def <--(n: Int): Option[Costate[Char, StrZipper]] =
+    strZipperNthLeftL(n) run this
+
+  def -->(n: Int): Option[Costate[Char, StrZipper]] =
+    strZipperNthRightL(n) run this
 }
 
 object StrZipper extends StrZipperFunctions {
@@ -233,5 +248,11 @@ trait StrZipperFunctions {
 
   def strZipperRightL: StrZipper @-? Char =
     PLens.listHeadPLens >=> ~strZipperRightsL
+
+  def strZipperNthLeftL(n: Int): StrZipper @-? Char =
+    PLens.listNthPLens(n) >=> ~strZipperLeftsL
+
+  def strZipperNthRightL(n: Int): StrZipper @-? Char =
+    PLens.listNthPLens(n) >=> ~strZipperRightsL
 
 }
